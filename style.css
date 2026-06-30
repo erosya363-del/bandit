@@ -173,8 +173,20 @@ body {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
     filter: drop-shadow(0 0 24px rgba(230, 57, 70, 0.35));
+}
+
+.hero-badge {
+    font-size: 48px;
+    line-height: 1;
+    margin-bottom: 4px;
+    animation: badgePulse 2s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 8px rgba(230,57,70,0.4)); }
+    50% { transform: scale(1.08); filter: drop-shadow(0 0 16px rgba(230,57,70,0.7)); }
 }
 .game-title.gameover {
     background: linear-gradient(135deg, #e17055, #fd79a8);
