@@ -1,15 +1,17 @@
 const CONFIG = {
-    gravity: 0.42,
-    jumpForce: -11.5,
-    superJumpForce: -15,
-    moveSpeed: 5.5,
-    walkSpeed: 5,
-    airControl: 0.14,
-    friction: 0.82,
-    groundFriction: 0.7,
-    maxFallSpeed: 14,
+    gravity: 0.52,
+    jumpForce: -14.5,
+    superJumpForce: -17,
+    moveSpeed: 9,
+    walkSpeed: 9.5,
+    airControl: 0.38,
+    friction: 0.86,
+    groundFriction: 0.78,
+    maxFallSpeed: 18,
     maxJumpsInAir: 2,
     breakableWarningFrames: 120,
+    touchFollow: 0.55,
+    touchAirPush: 0.45,
     mattressGap: 120,
     mattressMinWidth: 80,
     mattressMaxWidth: 160,
@@ -26,6 +28,14 @@ const CONFIG = {
         easy:   { gap: 160, increase: 0.00015, superJump: -22 },
         medium: { gap: 120, increase: 0.0003,  superJump: -20 },
         hard:   { gap: 90,  increase: 0.0005,  superJump: -18 }
+    },
+    mobile: {
+        walkSpeed: 12,
+        moveSpeed: 11,
+        jumpForce: -16,
+        airControl: 0.52,
+        touchFollow: 0.85,
+        touchAirPush: 0.65
     }
 };
 
@@ -348,7 +358,13 @@ class Player {
         this.walkCycle = 0;
     }
 
-    update(input, boundsWidth, touchWalkX, touchActive) {
+    update(input, boundsWidth, touchWalkX, touchActive, phys, frameScale = 1) {
+        const walkSpeed = phys.walkSpeed;
+        const moveSpeed = phys.moveSpeed;
+        const airControl = phys.airControl;
+        const touchFollow = phys.touchFollow;
+        const touchAirPush = phys.touchAirPush;
+
         if (this.isGrounded) {
             let moveX = 0;
 
@@ -356,49 +372,53 @@ class Player {
             if (input.right) moveX += 1;
 
             if (touchActive && touchWalkX !== null) {
-                const center = this.x + this.width / 2;
-                const diff = touchWalkX - center;
-                if (Math.abs(diff) > 4) {
-                    moveX += Math.sign(diff) * Math.min(1, Math.abs(diff) / 40);
-                }
-            }
-
-            if (moveX !== 0) {
-                this.vel.x = moveX * CONFIG.walkSpeed;
-                this.facing = moveX > 0 ? 1 : -1;
-                this.walkCycle += 0.25;
-            } else {
-                this.vel.x *= CONFIG.groundFriction;
-                if (Math.abs(this.vel.x) < 0.1) this.vel.x = 0;
-            }
-
-            this.vel.y = 0;
-        } else {
-            if (input.left) this.vel.x -= CONFIG.moveSpeed * CONFIG.airControl;
-            if (input.right) this.vel.x += CONFIG.moveSpeed * CONFIG.airControl;
-
-            if (touchActive && touchWalkX !== null) {
-                const center = this.x + this.width / 2;
-                const diff = touchWalkX - center;
-                if (Math.abs(diff) > 8) {
-                    this.vel.x += Math.sign(diff) * CONFIG.airControl * 2;
+                const targetX = touchWalkX - this.width / 2;
+                const diff = targetX - this.x;
+                if (Math.abs(diff) > 2) {
+                    const follow = Math.sign(diff) * Math.min(Math.abs(diff) * touchFollow, walkSpeed * 1.4);
+                    moveX += follow / walkSpeed;
                     this.facing = diff > 0 ? 1 : -1;
                 }
             }
 
-            this.vel.x *= CONFIG.friction;
-            this.vel.x = Math.max(-CONFIG.moveSpeed, Math.min(CONFIG.moveSpeed, this.vel.x));
+            if (moveX !== 0) {
+                const dir = Math.sign(moveX);
+                const mag = Math.min(Math.abs(moveX), 1.4);
+                this.vel.x = dir * walkSpeed * mag;
+                if (input.left || input.right) this.facing = dir;
+                this.walkCycle += 0.4 * frameScale;
+            } else {
+                this.vel.x *= Math.pow(CONFIG.groundFriction, frameScale);
+                if (Math.abs(this.vel.x) < 0.15) this.vel.x = 0;
+            }
 
-            if (Math.abs(this.vel.x) > 0.8) {
+            this.vel.y = 0;
+        } else {
+            if (input.left) this.vel.x -= moveSpeed * airControl * frameScale;
+            if (input.right) this.vel.x += moveSpeed * airControl * frameScale;
+
+            if (touchActive && touchWalkX !== null) {
+                const center = this.x + this.width / 2;
+                const diff = touchWalkX - center;
+                if (Math.abs(diff) > 6) {
+                    this.vel.x += Math.sign(diff) * touchAirPush * moveSpeed * frameScale;
+                    this.facing = diff > 0 ? 1 : -1;
+                }
+            }
+
+            this.vel.x *= Math.pow(CONFIG.friction, frameScale);
+            this.vel.x = Math.max(-moveSpeed, Math.min(moveSpeed, this.vel.x));
+
+            if (Math.abs(this.vel.x) > 0.6) {
                 this.facing = this.vel.x > 0 ? 1 : -1;
             }
 
-            this.vel.y += CONFIG.gravity;
+            this.vel.y += CONFIG.gravity * frameScale;
             this.vel.y = Math.min(this.vel.y, CONFIG.maxFallSpeed);
-            this.y += this.vel.y;
+            this.y += this.vel.y * frameScale;
         }
 
-        this.x += this.vel.x;
+        this.x += this.vel.x * frameScale;
         this.displayFacing += (this.facing - this.displayFacing) * 0.35;
 
         if (this.x < 0) { this.x = 0; this.vel.x = 0; }
@@ -630,14 +650,31 @@ class Game {
         this.touchStartX = 0;
         this.touchStartY = 0;
         this.touchMoved = false;
+        this.touchStartTime = 0;
         this.startPlatformY = 0;
 
-        this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        this.isMobile = ('ontouchstart' in window) ||
+            /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+        this.lastFrameTime = performance.now();
+        this.physics = this.buildPhysics();
 
         this.resize();
         this.init();
         this.setupEvents();
         this.gameLoop();
+    }
+
+    buildPhysics() {
+        const mob = this.isMobile ? CONFIG.mobile : {};
+        return {
+            walkSpeed: mob.walkSpeed ?? CONFIG.walkSpeed,
+            moveSpeed: mob.moveSpeed ?? CONFIG.moveSpeed,
+            jumpForce: mob.jumpForce ?? CONFIG.jumpForce,
+            airControl: mob.airControl ?? CONFIG.airControl,
+            touchFollow: mob.touchFollow ?? CONFIG.touchFollow,
+            touchAirPush: mob.touchAirPush ?? CONFIG.touchAirPush
+        };
     }
 
     resize() {
@@ -942,10 +979,13 @@ class Game {
     }
 
     setupCanvasInput() {
+        const touchTarget = document.querySelector('.game-container') || this.canvas;
+
         const onTouchStart = (clientX, clientY) => {
             if (this.state !== 'playing') return;
             this.touchStartX = clientX;
             this.touchStartY = clientY;
+            this.touchStartTime = performance.now();
             this.touchMoved = false;
             this.touchWalkX = this.getCanvasX(clientX);
             this.touchActive = true;
@@ -953,7 +993,9 @@ class Game {
 
         const onTouchMove = (clientX, clientY) => {
             if (this.state !== 'playing') return;
-            if (Math.abs(clientX - this.touchStartX) > 12 || Math.abs(clientY - this.touchStartY) > 12) {
+            const dx = clientX - this.touchStartX;
+            const dy = clientY - this.touchStartY;
+            if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
                 this.touchMoved = true;
             }
             this.touchWalkX = this.getCanvasX(clientX);
@@ -961,30 +1003,38 @@ class Game {
         };
 
         const onTouchEnd = () => {
-            if (this.state === 'playing' && !this.touchMoved) {
+            const tapDuration = performance.now() - this.touchStartTime;
+            if (this.state === 'playing' && !this.touchMoved && tapDuration < 280) {
                 this.tryJump();
             }
             this.touchActive = false;
             this.touchWalkX = null;
         };
 
-        this.canvas.addEventListener('touchstart', (e) => {
-            if (e.target.closest('.mobile-btn')) return;
+        const isControlBtn = (el) => el && (el.closest('.mobile-btn') || el.closest('.mobile-controls'));
+
+        touchTarget.addEventListener('touchstart', (e) => {
+            if (isControlBtn(e.target)) return;
             e.preventDefault();
             const t = e.touches[0];
             onTouchStart(t.clientX, t.clientY);
         }, { passive: false });
 
-        this.canvas.addEventListener('touchmove', (e) => {
-            if (e.target.closest('.mobile-btn')) return;
+        touchTarget.addEventListener('touchmove', (e) => {
+            if (isControlBtn(e.target)) return;
             e.preventDefault();
             const t = e.touches[0];
             onTouchMove(t.clientX, t.clientY);
         }, { passive: false });
 
-        this.canvas.addEventListener('touchend', (e) => {
-            if (e.target.closest('.mobile-btn')) return;
+        touchTarget.addEventListener('touchend', (e) => {
+            if (isControlBtn(e.target)) return;
             onTouchEnd();
+        });
+
+        touchTarget.addEventListener('touchcancel', () => {
+            this.touchActive = false;
+            this.touchWalkX = null;
         });
 
         this.canvas.addEventListener('mousedown', (e) => {
@@ -1021,36 +1071,38 @@ class Game {
         const btnRight = document.getElementById('btnRight');
         const btnJump = document.getElementById('btnJump');
 
-        const handleTouch = (btn, action) => (e) => {
-            e.preventDefault();
-            if (this.state !== 'playing') return;
-            action();
-            btn.classList.add('active');
-            setTimeout(() => btn.classList.remove('active'), 100);
+        const bindHold = (btn, onPress, onRelease) => {
+            if (!btn) return;
+            const press = (e) => {
+                e.preventDefault();
+                if (this.state !== 'playing') return;
+                onPress();
+                btn.classList.add('active');
+            };
+            const release = () => {
+                onRelease();
+                btn.classList.remove('active');
+            };
+            btn.addEventListener('touchstart', press, { passive: false });
+            btn.addEventListener('touchend', release, { passive: false });
+            btn.addEventListener('touchcancel', release, { passive: false });
+            btn.addEventListener('mousedown', () => { if (this.state === 'playing') onPress(); });
+            btn.addEventListener('mouseup', release);
+            btn.addEventListener('mouseleave', release);
         };
 
-        if (btnLeft) {
-            btnLeft.addEventListener('touchstart', handleTouch(btnLeft, () => this.input.left = true), { passive: false });
-            btnLeft.addEventListener('touchend', () => this.input.left = false);
-            btnLeft.addEventListener('mousedown', () => { if (this.state === 'playing') this.input.left = true; });
-            btnLeft.addEventListener('mouseup', () => this.input.left = false);
-            btnLeft.addEventListener('mouseleave', () => this.input.left = false);
-        }
-        if (btnRight) {
-            btnRight.addEventListener('touchstart', handleTouch(btnRight, () => this.input.right = true), { passive: false });
-            btnRight.addEventListener('touchend', () => this.input.right = false);
-            btnRight.addEventListener('mousedown', () => { if (this.state === 'playing') this.input.right = true; });
-            btnRight.addEventListener('mouseup', () => this.input.right = false);
-            btnRight.addEventListener('mouseleave', () => this.input.right = false);
-        }
+        bindHold(btnLeft, () => { this.input.left = true; }, () => { this.input.left = false; });
+        bindHold(btnRight, () => { this.input.right = true; }, () => { this.input.right = false; });
+
         if (btnJump) {
-            btnJump.addEventListener('touchstart', handleTouch(btnJump, () => {
+            const jump = (e) => {
+                e.preventDefault();
                 if (this.state === 'playing') this.tryJump();
-            }), { passive: false });
-            btnJump.addEventListener('touchend', () => {});
+                btnJump.classList.add('active');
+                setTimeout(() => btnJump.classList.remove('active'), 120);
+            };
+            btnJump.addEventListener('touchstart', jump, { passive: false });
             btnJump.addEventListener('mousedown', () => { if (this.state === 'playing') this.tryJump(); });
-            btnJump.addEventListener('mouseup', () => {});
-            btnJump.addEventListener('mouseleave', () => {});
         }
     }
 
@@ -1087,6 +1139,7 @@ class Game {
             superJumpForce: mode.superJump
         };
 
+        this.physics = this.buildPhysics();
         this.resize();
         this.init();
         this.sound.init();
@@ -1108,6 +1161,7 @@ class Game {
         const nameInput = document.getElementById('playerName');
         if (nameInput) nameInput.classList.remove('error');
 
+        this.physics = this.buildPhysics();
         this.resize();
         this.init();
         this.state = 'playing';
@@ -1121,7 +1175,7 @@ class Game {
     }
 
     tryJump() {
-        const jumped = this.player.tryJump(CONFIG.jumpForce);
+        const jumped = this.player.tryJump(this.physics.jumpForce);
         if (jumped) {
             this.sound.jump();
             this.particles.emit(
@@ -1177,12 +1231,13 @@ class Game {
         }
     }
 
-    update() {
+    update(dt = 1 / 60) {
         if (this.state !== 'playing' || !this.player) return;
 
-        this.time += 0.016;
+        const frameScale = Math.min(dt * 60, 3);
+        this.time += dt;
         const diffIncrease = this.activeConfig?.difficultyIncrease ?? CONFIG.difficultyIncrease;
-        this.difficulty += diffIncrease;
+        this.difficulty += diffIncrease * frameScale;
 
         this.mattresses.forEach(m => {
             if (!m.broken) m.update(this.width);
@@ -1205,7 +1260,9 @@ class Game {
             this.input,
             this.width,
             this.touchWalkX,
-            this.touchActive
+            this.touchActive,
+            this.physics,
+            frameScale
         );
 
         if (this.player.isGrounded && this.player.standingOn && !this.player.standingOn.broken) {
@@ -1276,7 +1333,7 @@ class Game {
             this.highestY = this.player.y;
         }
 
-        if (this.comboTimer > 0) this.comboTimer--;
+        if (this.comboTimer > 0) this.comboTimer -= frameScale;
         else if (this.combo > 1) this.combo = 1;
 
         const topEdge = this.cameraY - 100;
@@ -1438,10 +1495,12 @@ class Game {
         ctx.restore();
     }
 
-    gameLoop() {
-        this.update();
+    gameLoop(now = performance.now()) {
+        const dt = Math.min((now - this.lastFrameTime) / 1000, 0.05);
+        this.lastFrameTime = now;
+        this.update(dt);
         this.draw();
-        requestAnimationFrame(() => this.gameLoop());
+        requestAnimationFrame((t) => this.gameLoop(t));
     }
 }
 

@@ -41,6 +41,9 @@ body {
     max-width: 800px;
     background: linear-gradient(180deg, #050510 0%, #0a0a22 40%, #12123a 100%);
     overflow: hidden;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 #gameCanvas {
@@ -592,13 +595,14 @@ body {
 }
 
 @media (max-width: 768px) {
-    .mobile-controls.visible {
+    .mobile-controls.visible,
+    .mobile-controls {
         display: flex;
     }
     .mobile-btn {
-        width: 75px;
-        height: 75px;
-        font-size: 32px;
+        width: 80px;
+        height: 80px;
+        font-size: 34px;
     }
     .game-title {
         font-size: 42px;
