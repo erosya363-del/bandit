@@ -39,7 +39,6 @@ class BanditGame {
             moveSpeed: m.moveSpeed ?? CONFIG.moveSpeed,
             jumpForce: m.jumpForce ?? CONFIG.jumpForce,
             airControl: m.airControl ?? CONFIG.airControl,
-            touchFollow: m.touchFollow ?? CONFIG.touchFollow,
             touchAirPush: CONFIG.touchAirPush
         };
     }

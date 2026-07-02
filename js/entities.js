@@ -159,19 +159,16 @@ class Player {
     }
 
     update(input, phys, boundsW) {
-        const { walkSpeed, moveSpeed, airControl, touchFollow, touchAirPush } = phys;
+        const { walkSpeed, moveSpeed, airControl, touchAirPush } = phys;
+        const drag = input.touch.active && input.touch.moved ? input.touch.dir : 0;
 
         if (this.grounded) {
             let mx = 0;
             if (input.actions.left) mx -= 1;
             if (input.actions.right) mx += 1;
-            if (input.touch.active && input.touch.x != null) {
-                const tx = input.touch.x - this.w / 2;
-                const d = tx - this.x;
-                if (Math.abs(d) > 2) {
-                    mx += Math.sign(d) * Math.min(1, Math.abs(d) * touchFollow / walkSpeed);
-                    this.facing = d > 0 ? 1 : -1;
-                }
+            if (drag) {
+                mx += drag;
+                this.facing = drag;
             }
             if (mx) {
                 this.vel.x = Math.sign(mx) * walkSpeed * Math.min(Math.abs(mx), 1.3);
@@ -185,12 +182,9 @@ class Player {
         } else {
             if (input.actions.left) this.vel.x -= moveSpeed * airControl;
             if (input.actions.right) this.vel.x += moveSpeed * airControl;
-            if (input.touch.active && input.touch.x != null) {
-                const d = input.touch.x - (this.x + this.w / 2);
-                if (Math.abs(d) > 5) {
-                    this.vel.x += Math.sign(d) * touchAirPush * moveSpeed;
-                    this.facing = d > 0 ? 1 : -1;
-                }
+            if (drag) {
+                this.vel.x += drag * touchAirPush * moveSpeed;
+                this.facing = drag;
             }
             this.vel.x *= CONFIG.friction;
             this.vel.x = clamp(this.vel.x, -moveSpeed, moveSpeed);

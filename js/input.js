@@ -3,7 +3,7 @@
 class InputManager {
     constructor(canvas, container) {
         this.actions = { left: false, right: false, jump: false };
-        this.touch = { active: false, x: null, moved: false, startX: 0, startY: 0, startTime: 0 };
+        this.touch = { active: false, dir: 0, moved: false, prevX: 0, startX: 0, startY: 0, startTime: 0 };
         this.canvas = canvas;
         this.container = container;
         this.jumpQueued = false;
@@ -14,11 +14,6 @@ class InputManager {
         if (!this.jumpQueued) return false;
         this.jumpQueued = false;
         return true;
-    }
-
-    canvasX(clientX) {
-        const r = this.canvas.getBoundingClientRect();
-        return (clientX - r.left) * (this.canvas.offsetWidth / r.width);
     }
 
     _bind() {
@@ -39,21 +34,30 @@ class InputManager {
         const onStart = (cx, cy) => {
             this.touch.active = true;
             this.touch.moved = false;
+            this.touch.dir = 0;
+            this.touch.prevX = cx;
             this.touch.startX = cx;
             this.touch.startY = cy;
             this.touch.startTime = performance.now();
-            this.touch.x = this.canvasX(cx);
         };
         const onMove = (cx, cy) => {
-            if (Math.hypot(cx - this.touch.startX, cy - this.touch.startY) > 8) this.touch.moved = true;
-            this.touch.x = this.canvasX(cx);
+            if (!this.touch.active) return;
+            const dx = cx - this.touch.prevX;
+            this.touch.prevX = cx;
+            if (Math.hypot(cx - this.touch.startX, cy - this.touch.startY) > 8) {
+                this.touch.moved = true;
+            }
+            if (this.touch.moved) {
+                this.touch.dir = Math.abs(dx) >= 2 ? Math.sign(dx) : 0;
+            }
         };
         const onEnd = () => {
-            if (!this.touch.moved && performance.now() - this.touch.startTime < 280) {
+            if (this.touch.active && !this.touch.moved && performance.now() - this.touch.startTime < 280) {
                 this.jumpQueued = true;
             }
             this.touch.active = false;
-            this.touch.x = null;
+            this.touch.moved = false;
+            this.touch.dir = 0;
         };
 
         this.container.addEventListener('touchstart', e => {
@@ -67,7 +71,7 @@ class InputManager {
             onMove(e.touches[0].clientX, e.touches[0].clientY);
         }, { passive: false });
         this.container.addEventListener('touchend', e => { if (!isBtn(e.target)) onEnd(); });
-        this.container.addEventListener('touchcancel', () => { this.touch.active = false; this.touch.x = null; });
+        this.container.addEventListener('touchcancel', onEnd);
 
         this.bindMobileButtons();
     }
