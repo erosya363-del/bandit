@@ -38,10 +38,25 @@ function verifyScore(signed, expectedName = null) {
     } catch { return null; }
 }
 
+const LB_KEY = 'bandit_leaderboard_v4';
+const LB_KEY_LEGACY = 'bandit_leaderboard';
+const LAST_NAME_KEY = 'bandit_last_player';
+
 const Leaderboard = {
+    normalizeName(name) {
+        return name.replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
+    },
+
+    migrate() {
+        if (localStorage.getItem(LB_KEY)) return;
+        const legacy = localStorage.getItem(LB_KEY_LEGACY);
+        if (legacy) localStorage.setItem(LB_KEY, legacy);
+    },
+
     load() {
+        this.migrate();
         try {
-            const raw = localStorage.getItem('bandit_leaderboard');
+            const raw = localStorage.getItem(LB_KEY);
             if (!raw) return [];
             const parsed = JSON.parse(raw);
             if (!Array.isArray(parsed)) return [];
@@ -54,13 +69,27 @@ const Leaderboard = {
     },
 
     save(list) {
-        localStorage.setItem('bandit_leaderboard', JSON.stringify(list));
+        localStorage.setItem(LB_KEY, JSON.stringify(list));
+    },
+
+    hasName(name) {
+        const n = this.normalizeName(name).toLowerCase();
+        return this.load().some(e => e.name.toLowerCase() === n);
+    },
+
+    getLastUsedName() {
+        try { return localStorage.getItem(LAST_NAME_KEY) || ''; } catch { return ''; }
+    },
+
+    saveLastUsedName(name) {
+        localStorage.setItem(LAST_NAME_KEY, this.normalizeName(name));
     },
 
     add(name, score) {
         if (score <= 0) return this.load();
-        let lb = this.load();
-        lb.push({ name, score, signature: signScore(name, score), date: new Date().toISOString() });
+        const clean = this.normalizeName(name);
+        let lb = this.load().filter(e => e.name.toLowerCase() !== clean.toLowerCase());
+        lb.push({ name: clean, score, signature: signScore(clean, score), date: new Date().toISOString() });
         lb.sort((a, b) => b.score - a.score);
         lb = lb.slice(0, 10);
         this.save(lb);

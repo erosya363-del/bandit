@@ -219,7 +219,7 @@ class Player {
 
     _jump(force) {
         this.vel.y = force;
-        this.jumpAnim = 14;
+        this.jumpAnim = 22;
     }
 
     land(p) {
@@ -238,61 +238,178 @@ class Player {
 
     draw(ctx, camY, t) {
         if (this.invuln > 0 && Math.floor(this.invuln / 4) % 2 === 0) return;
-        const sy = this.y - camY;
-        const cx = this.x + this.w / 2;
-        const cy = sy + this.h / 2;
-        ctx.save();
-        ctx.translate(cx, cy);
-        ctx.rotate(this.grounded ? Math.sin(this.walkCycle) * 0.05 : this.vel.x * 0.05);
-        if (this.displayFacing < 0) ctx.scale(-1, 1);
 
+        const footX = this.x + this.w / 2;
+        const footY = this.y - camY + this.h;
         const red = CONFIG.palette.spiderRed;
         const blue = CONFIG.palette.spiderBlue;
+        const webbing = this.jumpAnim > 0;
+        const webA = this.jumpAnim / 22;
+        const walk = this.grounded ? Math.sin(this.walkCycle) : 0;
+        const airLean = this.grounded ? 0 : clamp(this.vel.x * 0.04, -0.18, 0.18);
 
-        if (playerAvatarImage?.complete) {
-            ctx.save();
-            ctx.beginPath(); ctx.arc(0, -8, 14, 0, Math.PI * 2); ctx.clip();
-            ctx.drawImage(playerAvatarImage, -14, -22, 28, 28);
-            ctx.restore();
-        } else {
-            ctx.fillStyle = red;
-            ctx.beginPath(); ctx.arc(0, -16, 11, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#fff';
-            ctx.beginPath(); ctx.ellipse(-4, -14, 5, 7, -0.2, 0, Math.PI * 2); ctx.fill();
-            ctx.beginPath(); ctx.ellipse(4, -14, 5, 7, 0.2, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#111';
-            ctx.beginPath(); ctx.ellipse(-4, -13, 2, 3.5, -0.2, 0, Math.PI * 2); ctx.fill();
-            ctx.beginPath(); ctx.ellipse(4, -13, 2, 3.5, 0.2, 0, Math.PI * 2); ctx.fill();
-        }
+        ctx.save();
+        ctx.translate(footX, footY);
+        ctx.rotate(airLean);
+        ctx.scale(this.displayFacing, 1);
 
+        // ── Ноги (прямые, ступни на платформе) ──
+        const walking = this.grounded && Math.abs(walk) > 0.2;
+        const legSpread = walking ? 5 + walk * 0.5 : (this.grounded ? 2.5 : 4);
+        const stepLift = walking ? Math.max(0, walk) * 4 : (this.grounded ? 0 : Math.sin(t * 14) * 2);
         ctx.fillStyle = blue;
-        ctx.beginPath(); ctx.roundRect(-12, -2, 24, 30, 5); ctx.fill();
+        ctx.beginPath();
+        ctx.roundRect(-legSpread - 3, -30 + stepLift, 6, 22, 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.roundRect(legSpread - 3, -30 - stepLift, 6, 22, 2);
+        ctx.fill();
         ctx.fillStyle = red;
         ctx.beginPath();
-        ctx.moveTo(-12, 2); ctx.lineTo(12, 2); ctx.lineTo(9, 14); ctx.lineTo(-9, 14);
-        ctx.closePath(); ctx.fill();
+        ctx.roundRect(-10, -32, 20, 5, 2);
+        ctx.fill();
         ctx.fillStyle = red;
-        ctx.beginPath(); ctx.ellipse(0, 8, 3, 5, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.roundRect(-legSpread - 3.5, -9 + stepLift, 7, 9, 3);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.roundRect(legSpread - 3.5, -9 - stepLift, 7, 9, 3);
+        ctx.fill();
 
-        const ls = this.grounded ? Math.sin(this.walkCycle) * 5 : Math.sin(t * 12) * 4;
+        // ── Туловище ──
         ctx.fillStyle = blue;
-        ctx.beginPath(); ctx.roundRect(-11, 26, 9, 12 + ls * 0.3, 3); ctx.fill();
-        ctx.beginPath(); ctx.roundRect(2, 26, 9, 12 - ls * 0.3, 3); ctx.fill();
+        ctx.beginPath();
+        ctx.roundRect(-10, -48, 20, 20, 5);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        ctx.lineWidth = 1;
+        for (let i = -7; i <= 7; i += 4) {
+            ctx.beginPath();
+            ctx.moveTo(i, -46);
+            ctx.lineTo(i + (i < 0 ? 2 : -2), -32);
+            ctx.stroke();
+        }
         ctx.fillStyle = red;
-        ctx.beginPath(); ctx.roundRect(-14, 16, 7, 11, 2); ctx.fill();
-        ctx.beginPath(); ctx.roundRect(7, 16, 7, 11, 2); ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(0, -44);
+        ctx.lineTo(6, -38);
+        ctx.lineTo(0, -32);
+        ctx.lineTo(-6, -38);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#111';
+        ctx.beginPath();
+        ctx.ellipse(0, -38, 2, 2.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        for (let i = 0; i < 4; i++) {
+            const a = (Math.PI * 2 * i) / 4 + Math.PI / 4;
+            ctx.beginPath();
+            ctx.moveTo(0, -38);
+            ctx.lineTo(Math.cos(a) * 4.5, -38 + Math.sin(a) * 4.5);
+            ctx.strokeStyle = '#111';
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+        }
 
-        if (this.jumpAnim > 0) {
-            const a = this.jumpAnim / 14;
-            ctx.strokeStyle = `rgba(255,255,255,${a * 0.85})`;
-            ctx.lineWidth = 1.5 * a;
-            for (let i = -1; i <= 1; i += 2) {
+        // ── Голова / маска ──
+        if (playerAvatarImage?.complete) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(0, -54, 11, 0, Math.PI * 2);
+            ctx.clip();
+            ctx.drawImage(playerAvatarImage, -11, -65, 22, 22);
+            ctx.restore();
+            ctx.strokeStyle = red;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(0, -54, 11, 0, Math.PI * 2);
+            ctx.stroke();
+        } else {
+            ctx.fillStyle = red;
+            ctx.beginPath();
+            ctx.arc(0, -54, 11, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.ellipse(-4, -54, 4, 6.5, -0.25, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(4, -54, 4, 6.5, 0.25, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#111';
+            ctx.beginPath();
+            ctx.ellipse(-4, -53, 1.8, 4, -0.25, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(4, -53, 1.8, 4, 0.25, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#0d0d0d';
+            ctx.lineWidth = 0.8;
+            ctx.beginPath();
+            ctx.moveTo(-2.5, -47);
+            ctx.quadraticCurveTo(0, -45.5, 2.5, -47);
+            ctx.stroke();
+        }
+
+        // ── Руки ──
+        const armSwing = this.grounded && !webbing ? walk * 5 : 0;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        if (webbing) {
+            const reach = lerp(0, 1, 1 - webA);
+            const handY = -62 - reach * 16;
+            const handX = 12 + reach * 5;
+            ctx.strokeStyle = blue;
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.moveTo(-8, -42);
+            ctx.lineTo(-handX, handY);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(8, -42);
+            ctx.lineTo(handX, handY);
+            ctx.stroke();
+            ctx.fillStyle = red;
+            ctx.beginPath();
+            ctx.arc(-handX, handY, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(handX, handY, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = `rgba(255,255,255,${webA * 0.9})`;
+            ctx.lineWidth = 2 * webA;
+            for (const side of [-1, 1]) {
+                const hx = side * handX;
                 ctx.beginPath();
-                ctx.moveTo(i * 5, -22);
-                ctx.quadraticCurveTo(i * 20, -40, i * 30, -55);
+                ctx.moveTo(hx, handY);
+                ctx.quadraticCurveTo(side * 22, handY - 18, side * 28, handY - 52);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(hx, handY);
+                ctx.quadraticCurveTo(side * 8, handY - 30, side * 14, handY - 58);
                 ctx.stroke();
             }
+        } else {
+            ctx.strokeStyle = blue;
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.moveTo(-8, -42);
+            ctx.lineTo(-12, -28 + armSwing);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(8, -42);
+            ctx.lineTo(12, -28 - armSwing);
+            ctx.stroke();
+            ctx.fillStyle = red;
+            ctx.beginPath();
+            ctx.arc(-12, -26 + armSwing, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(12, -26 - armSwing, 3.5, 0, Math.PI * 2);
+            ctx.fill();
         }
+
         ctx.restore();
     }
 }

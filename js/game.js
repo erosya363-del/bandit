@@ -26,10 +26,46 @@ class BanditGame {
 
         this.world = null;
         this.bindUI();
+        this.setupLeaderboardSync();
+        this.prepareNameInput();
         this.resize();
-        this.renderLeaderboard('leaderboardList');
+        this.refreshLeaderboards();
         window.addEventListener('resize', () => this.resize());
         requestAnimationFrame(t => this.loop(t));
+    }
+
+    prepareNameInput() {
+        const inp = document.getElementById('playerName');
+        if (!inp) return;
+        inp.value = '';
+        inp.addEventListener('input', () => this.hideNameErrors());
+    }
+
+    hideNameErrors() {
+        document.getElementById('nameError').style.display = 'none';
+        document.getElementById('nameReuseError').style.display = 'none';
+        document.getElementById('playerName')?.classList.remove('error');
+    }
+
+    setupLeaderboardSync() {
+        window.addEventListener('storage', e => {
+            if (!e.key || e.key.startsWith('bandit_')) {
+                this.bestScore = Leaderboard.best();
+                this.refreshLeaderboards();
+                if (this.state === 'playing') this.updateHUD();
+            }
+        });
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                this.bestScore = Leaderboard.best();
+                this.refreshLeaderboards();
+            }
+        });
+    }
+
+    refreshLeaderboards() {
+        this.renderLeaderboard('leaderboardList');
+        this.renderLeaderboard('gameOverLeaderboardList', this.state === 'gameover');
     }
 
     buildPhys() {
@@ -87,7 +123,7 @@ class BanditGame {
         document.getElementById('showLeaderboardBtn')?.addEventListener('click', () => {
             const lb = document.getElementById('leaderboard');
             lb.style.display = lb.style.display === 'none' ? 'block' : 'none';
-            this.renderLeaderboard('leaderboardList');
+            this.refreshLeaderboards();
         });
         this.setupAvatar();
     }
@@ -139,7 +175,10 @@ class BanditGame {
     startGame() {
         const inp = document.getElementById('playerName');
         const err = document.getElementById('nameError');
-        this.playerName = inp.value.replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
+        const reuseErr = document.getElementById('nameReuseError');
+        this.playerName = Leaderboard.normalizeName(inp.value);
+        this.hideNameErrors();
+
         if (!this.validateName(this.playerName)) {
             err.style.display = 'block';
             inp.classList.add('error');
@@ -147,7 +186,18 @@ class BanditGame {
             if (navigator.vibrate) navigator.vibrate(60);
             return;
         }
-        err.style.display = 'none';
+
+        const lastName = Leaderboard.getLastUsedName();
+        if (lastName && this.playerName.toLowerCase() === lastName.toLowerCase()) {
+            reuseErr.style.display = 'block';
+            inp.classList.add('error');
+            inp.focus();
+            inp.select();
+            if (navigator.vibrate) navigator.vibrate(60);
+            return;
+        }
+
+        Leaderboard.saveLastUsedName(this.playerName);
         inp.classList.remove('error');
         inp.blur();
 
@@ -207,6 +257,7 @@ class BanditGame {
         else rd.textContent = `#${rank} в рейтинге`;
 
         this.renderLeaderboard('gameOverLeaderboardList', true);
+        this.renderLeaderboard('leaderboardList');
         document.getElementById('gameOverScreen').classList.remove('hidden');
         this.setMobileControls(false);
     }
