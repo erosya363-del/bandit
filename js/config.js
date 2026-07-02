@@ -8,17 +8,17 @@ const CONFIG = {
     maxJumps: 2,
     maxFallSpeed: 20,
 
-    walkSpeed: 10,
-    moveSpeed: 11,
-    airControl: 0.42,
+    walkSpeed: 8,
+    moveSpeed: 8.8,
+    airControl: 0.34,
     friction: 0.88,
     groundFriction: 0.82,
 
     touchFollow: 0.9,
-    touchAirPush: 0.55,
+    touchAirPush: 0.44,
 
     breakableWarningSec: 2,
-    cameraSmooth: 0.1,
+    cameraSmooth: 0.08,
     collectibleRate: 0.28,
 
     platformMinW: 70,
@@ -44,10 +44,10 @@ const CONFIG = {
     },
 
     mobile: {
-        walkSpeed: 13,
-        moveSpeed: 12,
+        walkSpeed: 10.4,
+        moveSpeed: 9.6,
         jumpForce: -16.5,
-        airControl: 0.55,
+        airControl: 0.44,
         touchFollow: 1.05
     }
 };
